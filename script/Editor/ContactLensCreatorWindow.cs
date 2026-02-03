@@ -14,6 +14,7 @@ public class ContactLensCreatorWindow : EditorWindow
     
     private const string TmpPath = "Assets/Pan/ContactLens/tmp";
     private const string StateFileName = "creator_state.json";
+    private const string ReadMeTemplatePath = "Assets/Pan/ContactLens/config/ReadMeTemplate.txt";
     
     [System.Serializable]
     private class CreatorState
@@ -39,6 +40,8 @@ public class ContactLensCreatorWindow : EditorWindow
         ? $"Assets/{currentState.authorName}/{currentState.productName}" 
         : null;
     public static string SourceAvatar => currentState?.sourceAvatar ?? "flat12";
+    public static string AuthorName => currentState?.authorName ?? "";
+    public static string ProductName => currentState?.productName ?? "";
     
     private void OnEnable()
     {
@@ -48,14 +51,6 @@ public class ContactLensCreatorWindow : EditorWindow
     private void OnGUI()
     {
         var avatarNames = ContactLensConfig.AvatarNames;
-        
-        EditorGUILayout.Space(10);
-        EditorGUILayout.LabelField("製作者モード", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox("コンタクトレンズの配布用unitypackageを作成します。\n\n" +
-            "フォルダ構造:\n" +
-            "  {作者名}/{製品名}/        - プレハブ\n" +
-            "  {作者名}/{製品名}/res/tex - レンズテクスチャ\n" +
-            "  {作者名}/{製品名}/res/tmb - サムネイル", MessageType.Info);
         
         EditorGUILayout.Space(10);
         
@@ -99,8 +94,13 @@ public class ContactLensCreatorWindow : EditorWindow
             
             EditorGUILayout.Space(5);
             
+            if (GUILayout.Button("アクティブなアバターにひな形を作成", GUILayout.Height(30)))
+            {
+                CreateTemplateOnActiveAvatar();
+            }
+            
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("unitypackage出力", GUILayout.Height(30)))
+            if (GUILayout.Button("配布物出力", GUILayout.Height(30)))
             {
                 ExportUnityPackage();
             }
@@ -128,13 +128,7 @@ public class ContactLensCreatorWindow : EditorWindow
             }
         }
         
-        EditorGUILayout.Space(10);
         
-        // アクティブなアバターにひな形を作成
-        if (GUILayout.Button("アクティブなアバターにひな形を作成", GUILayout.Height(25)))
-        {
-            CreateTemplateOnActiveAvatar();
-        }
     }
     
     private void CreateTemplateOnActiveAvatar()
@@ -286,9 +280,50 @@ public class ContactLensCreatorWindow : EditorWindow
         
         if (string.IsNullOrEmpty(exportPath)) return;
         
+        // ReadMe生成（unitypackageと同じフォルダに、上書きしない）
+        GenerateReadMe(exportPath);
+        
         AssetDatabase.ExportPackage(projectPath, exportPath, ExportPackageOptions.Recurse);
         Debug.Log($"[ContactLens] unitypackage出力完了: {exportPath}");
         EditorUtility.DisplayDialog("完了", $"unitypackageを出力しました。\n{exportPath}", "OK");
+    }
+    
+    private void GenerateReadMe(string unityPackagePath)
+    {
+        string exportDir = Path.GetDirectoryName(unityPackagePath);
+        string readMePath = Path.Combine(exportDir, "ReadMe.txt");
+        
+        // 既に存在する場合は上書きしない
+        if (File.Exists(readMePath))
+        {
+            Debug.Log($"[ContactLens] ReadMe.txt は既に存在するためスキップ: {readMePath}");
+            return;
+        }
+        
+        // テンプレート読み込み
+        string templateFullPath = Path.Combine(Application.dataPath.Replace("/Assets", ""), ReadMeTemplatePath);
+        if (!File.Exists(templateFullPath))
+        {
+            Debug.LogWarning($"[ContactLens] ReadMeテンプレートが見つかりません: {templateFullPath}");
+            return;
+        }
+        
+        string template = File.ReadAllText(templateFullPath);
+        
+        // プレースホルダー置換
+        var sourceInfo = ContactLensConfig.GetAvatar(currentState.sourceAvatar);
+        string sourceDisplay = sourceInfo?.ReadmeDisplayName ?? currentState.sourceAvatar;
+        string nowDate = System.DateTime.Now.ToString("yyyy-MM-dd");
+        string unityVersion = Application.unityVersion;
+        
+        string content = template
+            .Replace("{SourceAvatar}", sourceDisplay)
+            .Replace("{製品名}", currentState.productName)
+            .Replace("{NowDate}", nowDate)
+            .Replace("{Unity Version}", unityVersion);
+        
+        File.WriteAllText(readMePath, content);
+        Debug.Log($"[ContactLens] ReadMe.txt を生成: {readMePath}");
     }
     
     private void SaveState()

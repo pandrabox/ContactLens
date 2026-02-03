@@ -168,13 +168,48 @@ public class ContactLensEditor : Editor
         if (ContactLensCreatorWindow.IsCreating)
         {
             EditorGUILayout.Space(10);
-            EditorGUILayout.LabelField("製作者モード", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox($"出力先: {ContactLensCreatorWindow.ProjectPath}", MessageType.None);
+            
+            // 目立つボックスで囲む
+            var boxStyle = new GUIStyle(EditorStyles.helpBox);
+            boxStyle.padding = new RectOffset(10, 10, 10, 10);
+            
+            EditorGUILayout.BeginVertical(boxStyle);
+            
+            // 大きめのタイトル
+            var titleStyle = new GUIStyle(EditorStyles.boldLabel);
+            titleStyle.fontSize = 14;
+            titleStyle.normal.textColor = new Color(0.2f, 0.8f, 0.4f);
+            EditorGUILayout.LabelField("★ 製作者モード ★", titleStyle);
+            
+            EditorGUILayout.Space(5);
+            
+            // 作者名/作品名/アバター
+            string authorName = ContactLensCreatorWindow.AuthorName ?? "";
+            string productName = ContactLensCreatorWindow.ProductName ?? "";
+            string srcAvatar = ContactLensCreatorWindow.SourceAvatar ?? "";
+            var srcAvatarInfo = ContactLensConfig.GetAvatar(srcAvatar);
+            string avatarDisplay = srcAvatarInfo?.displayName ?? srcAvatar;
+            
+            EditorGUILayout.LabelField($"作者: {authorName} / 作品: {productName} / アバター: {avatarDisplay}");
+            EditorGUILayout.LabelField($"出力先: {ContactLensCreatorWindow.ProjectPath}", EditorStyles.miniLabel);
+            
+            EditorGUILayout.Space(5);
+            
+            EditorGUILayout.BeginHorizontal();
             
             if (GUILayout.Button("リリース", GUILayout.Height(30)))
             {
                 Release(lens);
             }
+            
+            if (GUILayout.Button("管理画面", GUILayout.Height(30)))
+            {
+                ContactLensCreatorWindow.ShowWindow();
+            }
+            
+            EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.EndVertical();
         }
         
         if (GUI.changed)

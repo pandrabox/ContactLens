@@ -20,6 +20,7 @@ public class EyeParams
 public class AvatarInfo
 {
     public string displayName;
+    public string readmeDisplayName;
     public int resolution;
     public string pupilType;
     public EyeParams leftEye;
@@ -27,6 +28,8 @@ public class AvatarInfo
     public float scale = 1.0f;
     
     public bool IsIslandType => pupilType == "island";
+    
+    public string ReadmeDisplayName => !string.IsNullOrEmpty(readmeDisplayName) ? readmeDisplayName : displayName;
 }
 
 [System.Serializable]

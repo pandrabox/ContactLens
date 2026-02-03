@@ -16,7 +16,8 @@
         "width": 0.1729,
         "height": 0.1904
       },
-      "scale": 0.92
+      "scale": 0.92,
+      "readmeDisplayName": "コモド"
     },
     "fel": {
       "displayName": "fel",
@@ -34,7 +35,8 @@
         "width": 0.1072,
         "height": 0.1121
       },
-      "scale": 0.98
+      "scale": 0.98,
+      "readmeDisplayName": "フェル"
     },
     "heon": {
       "displayName": "heon",
@@ -52,7 +54,8 @@
         "width": 0.0842,
         "height": 0.0837
       },
-      "scale": 1.25
+      "scale": 1.25,
+      "readmeDisplayName": "ヘオン"
     },
     "kewf": {
       "displayName": "kewf",
@@ -70,7 +73,8 @@
         "width": 0.0549,
         "height": 0.0627
       },
-      "scale": 0.98
+      "scale": 0.98,
+      "readmeDisplayName": "キューフ"
     },
     "flat12": {
       "displayName": "flat Ver1&2",
@@ -88,7 +92,8 @@
         "width": 0.1665,
         "height": 0.1978
       },
-      "scale": 1.0
+      "scale": 1.0,
+      "readmeDisplayName": "フラット(通常, 2nd)"
     },
     "flat3if": {
       "displayName": "flat Ver3&If",
@@ -106,7 +111,8 @@
         "width": 0.1665,
         "height": 0.1978
       },
-      "scale": 1.0
+      "scale": 1.0,
+      "readmeDisplayName": "フラット(If, 4th)"
     }
   },
   "baseAvatar": "flat12"
