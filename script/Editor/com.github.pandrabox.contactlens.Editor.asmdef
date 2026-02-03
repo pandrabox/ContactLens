@@ -1,0 +1,19 @@
+{
+  "name": "com.github.pandrabox.contactlens.Editor",
+  "rootNamespace": "com.github.pandrabox.contactlens",
+  "references": [
+    "com.github.pandrabox.contactlens",
+    "VRC.SDKBase"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

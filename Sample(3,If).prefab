@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8305006366492457330
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4024940565603725482}
+  - component: {fileID: 8618936681673196247}
+  m_Layer: 0
+  m_Name: Sample(3,If)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4024940565603725482
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8305006366492457330}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8618936681673196247
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8305006366492457330}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79cc7cafc00225646b20dea924579b62, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lensTexture: {fileID: 2800000, guid: a552e7b5e8576df479ff12b5a1cc12ee, type: 3}
+  avatarMode: 1
+  enablePupil: 1
+  pupilColor: {r: 1, g: 1, b: 1, a: 1}
+  pupilAlpha: 1
+  showMaskSettings: 0
+  pupilMask12: {fileID: 2800000, guid: e4a1a3716ee2ad4449f596dc41377ae8, type: 3}
+  pupilMask3If: {fileID: 2800000, guid: f9ba575b5d7241540a2a4c078df2c856, type: 3}
+  eyeMask: {fileID: 2800000, guid: ce2116e7a9bf92d44b37d6fe59be3946, type: 3}
+  originalMaterialGUID: 
+  generatedMaterialPath: 
+  generatedMainTexPath: 
+  generatedEmissionTexPath: 
+  appliedAvatarPath: 
