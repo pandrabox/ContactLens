@@ -83,7 +83,6 @@ public static class ContactLensThumbnail
         return null;
     }
     
-    [MenuItem("Pan/ContactLens/ClearThumbnailCache")]
     public static void ClearCache()
     {
         thumbnailCache.Clear();
