@@ -503,38 +503,9 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     
     public void Restore()
     {
-        var smr = GetBodyRenderer();
-        
-        if (smr != null)
-        {
-            if (!string.IsNullOrEmpty(originalMaterialGUID))
-            {
-                var path = AssetDatabase.GUIDToAssetPath(originalMaterialGUID);
-                var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
-                if (mat != null)
-                {
-                    smr.sharedMaterial = mat;
-                }
-            }
-            if (originalMesh != null)
-            {
-                smr.sharedMesh = originalMesh;
-            }
-        }
-        
-        ScheduleDelete(generatedMaterialPath);
-        ScheduleDelete(generatedMainTexPath);
-        ScheduleDelete(generatedEmissionTexPath);
-        CleanupModifiedMesh();
-        
-        originalMaterialGUID = "";
-        generatedMeshPath = "";
-        generatedMaterialPath = "";
-        generatedMainTexPath = "";
-        generatedEmissionTexPath = "";
-        appliedAvatarPath = "";
-        originalMesh = null;
-        
+        RestoreRenderer(GetBodyRenderer());
+        ScheduleDeleteGeneratedAssets();
+        ClearState();
         Debug.Log("[ContactLens] 除去完了");
     }
     
