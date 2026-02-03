@@ -1,6 +1,6 @@
 {
-    "authorName": "",
-    "productName": "",
+    "authorName": "TestUser",
+    "productName": "TestLens",
     "avatarMode": 0,
-    "isCreating": false
+    "isCreating": true
 }

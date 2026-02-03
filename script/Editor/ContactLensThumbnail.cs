@@ -11,7 +11,6 @@ namespace com.github.pandrabox.contactlens
 public static class ContactLensThumbnail
 {
     static Dictionary<string, Texture2D> thumbnailCache = new Dictionary<string, Texture2D>();
-    static string contactLensFolder = "Assets/Pan/ContactLens";
     
     static ContactLensThumbnail()
     {
@@ -23,8 +22,12 @@ public static class ContactLensThumbnail
     {
         string path = AssetDatabase.GUIDToAssetPath(guid);
         
-        if (!path.StartsWith(contactLensFolder)) return;
         if (!path.EndsWith(".prefab")) return;
+        
+        // ContactLensコンポーネントを持つprefabのみ対象
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (prefab == null) return;
+        if (prefab.GetComponent<ContactLens>() == null) return;
         
         Texture2D thumb = GetThumbnail(path);
         if (thumb == null) return;
@@ -60,6 +63,7 @@ public static class ContactLensThumbnail
         string[] searchPaths = new string[]
         {
             Path.Combine(dir, name + "_thumb.png"),
+            Path.Combine(dir, "res", "tmb", name + "_thumb.png"),
             Path.Combine(dir, "texture", name + "_thumb.png"),
             Path.Combine(dir, "texture", "thumb", name + "_thumb.png"),
         };
