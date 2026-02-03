@@ -42,6 +42,7 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     [HideInInspector] public Mesh originalMesh;
     [HideInInspector] public Mesh modifiedMesh;
     [HideInInspector] public string generatedMeshPath;
+    [HideInInspector] public string generatedMaterialHash;
     
     static string GeneratedFolder => "Assets/Pan/ContactLens/Generated";
     static List<string> pendingDeletes = new List<string>();
@@ -109,8 +110,20 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         if (this == null) return;
         if (lensTexture == null) return;
         if (!string.IsNullOrEmpty(generatedMaterialPath)) return;
+        if (!IsLastLensInAvatar()) return;
         
         Apply();
+    }
+    
+    bool IsLastLensInAvatar()
+    {
+        if (transform.parent == null) return true;
+        
+        var lenses = transform.parent.GetComponentsInChildren<ContactLens>();
+        if (lenses.Length <= 1) return true;
+        
+        // Hierarchy順で最後かチェック
+        return lenses[lenses.Length - 1] == this;
     }
     
     void OnDestroy()
@@ -125,6 +138,38 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
             
             EditorApplication.update -= WaitAndApply;
             RestoreAndScheduleDelete();
+            
+            // 同じアバター内の他のレンズを再適用
+            ReapplyLastLensInAvatar();
+        }
+    }
+    
+    void ReapplyLastLensInAvatar()
+    {
+        if (transform.parent == null) return;
+        
+        var avatar = transform.parent;
+        var lenses = avatar.GetComponentsInChildren<ContactLens>();
+        
+        // 自分以外のレンズを探す（Destroyされる前なので自分も含まれる可能性）
+        ContactLens lastLens = null;
+        foreach (var lens in lenses)
+        {
+            if (lens != null && lens != this && lens.lensTexture != null)
+            {
+                lastLens = lens;
+            }
+        }
+        
+        if (lastLens != null)
+        {
+            EditorApplication.delayCall += () =>
+            {
+                if (lastLens != null)
+                {
+                    lastLens.Apply();
+                }
+            };
         }
     }
     
@@ -190,6 +235,7 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         appliedAvatarPath = "";
         originalMesh = null;
         modifiedMesh = null;
+        generatedMaterialHash = "";
     }
     
     void RestoreOriginalAvatar()
@@ -233,6 +279,13 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         {
             if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path) != null)
             {
+                // 読み取り専用を解除
+                var fullPath = Path.Combine(Application.dataPath.Replace("/Assets", ""), path);
+                if (File.Exists(fullPath))
+                {
+                    try { File.SetAttributes(fullPath, System.IO.FileAttributes.Normal); } catch { }
+                }
+                
                 AssetDatabase.DeleteAsset(path);
             }
         }
@@ -261,6 +314,13 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         var smr = GetBodyRenderer();
         if (smr == null || lensTexture == null) return;
         
+        // 複数レンズがある場合、最後の1つだけ有効
+        if (!IsLastLensInAvatar())
+        {
+            Debug.Log($"[ContactLens] スキップ: 最後のレンズではありません ({gameObject.name})");
+            return;
+        }
+        
         if (!string.IsNullOrEmpty(generatedMaterialPath))
         {
             Restore();
@@ -280,6 +340,7 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
         generatedMaterialPath = $"{GeneratedFolder}/{avatarName}_lens_{timestamp}.mat";
         AssetDatabase.CreateAsset(newMat, generatedMaterialPath);
+        newMat.hideFlags = HideFlags.NotEditable;
         
         var mainTex = originalMat.GetTexture("_MainTex") as Texture2D;
         if (mainTex != null)
@@ -307,6 +368,9 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         EditorUtility.SetDirty(newMat);
         EditorUtility.SetDirty(this);
         AssetDatabase.SaveAssets();
+        
+        // マテリアルハッシュ保存
+        generatedMaterialHash = ComputeMaterialHash(newMat);
         
         Debug.Log($"[ContactLens] 適用完了: {transform.parent.name} ({sourceAvatar} -> {targetAvatar})");
     }
@@ -340,6 +404,7 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
         generatedMeshPath = $"{GeneratedFolder}/{avatarName}_mesh_{timestamp}.asset";
         AssetDatabase.CreateAsset(modifiedMesh, generatedMeshPath);
+        modifiedMesh.hideFlags = HideFlags.NotEditable;
         
         smr.sharedMesh = modifiedMesh;
         
@@ -652,6 +717,48 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         Debug.Log("[ContactLens] 除去完了");
     }
     
+    string ComputeMaterialHash(Material mat)
+    {
+        if (mat == null) return "";
+        
+        var sb = new System.Text.StringBuilder();
+        
+        // シェーダー名
+        sb.Append(mat.shader?.name ?? "");
+        
+        // 主要プロパティ
+        string[] texProps = { "_MainTex", "_EmissionMap", "_BumpMap", "_MetallicGlossMap" };
+        foreach (var prop in texProps)
+        {
+            if (mat.HasProperty(prop))
+            {
+                var tex = mat.GetTexture(prop);
+                sb.Append(tex != null ? AssetDatabase.GetAssetPath(tex) : "null");
+            }
+        }
+        
+        string[] colorProps = { "_Color", "_EmissionColor" };
+        foreach (var prop in colorProps)
+        {
+            if (mat.HasProperty(prop))
+            {
+                sb.Append(mat.GetColor(prop).ToString());
+            }
+        }
+        
+        string[] floatProps = { "_Metallic", "_Glossiness", "_BumpScale" };
+        foreach (var prop in floatProps)
+        {
+            if (mat.HasProperty(prop))
+            {
+                sb.Append(mat.GetFloat(prop).ToString("F4"));
+            }
+        }
+        
+        // 簡易ハッシュ
+        return sb.ToString().GetHashCode().ToString("X8");
+    }
+    
     Texture2D GetReadable(Texture2D source)
     {
         RenderTexture rt = RenderTexture.GetTemporary(source.width, source.height);
@@ -685,7 +792,19 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     string SaveTexture(Texture2D tex, string name)
     {
         var path = $"{GeneratedFolder}/{name}.png";
-        File.WriteAllBytes(path, tex.EncodeToPNG());
+        var fullPath = Path.Combine(Application.dataPath.Replace("/Assets", ""), path);
+        
+        // 既存の読み取り専用を解除（上書き用）
+        if (File.Exists(fullPath))
+        {
+            File.SetAttributes(fullPath, System.IO.FileAttributes.Normal);
+        }
+        
+        File.WriteAllBytes(fullPath, tex.EncodeToPNG());
+        
+        // 読み取り専用に設定
+        File.SetAttributes(fullPath, System.IO.FileAttributes.ReadOnly);
+        
         AssetDatabase.Refresh();
         
         var importer = AssetImporter.GetAtPath(path) as TextureImporter;
@@ -693,6 +812,14 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         {
             importer.streamingMipmaps = true;
             importer.SaveAndReimport();
+        }
+        
+        // NotEditable設定
+        var loadedTex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        if (loadedTex != null)
+        {
+            loadedTex.hideFlags = HideFlags.NotEditable;
+            EditorUtility.SetDirty(loadedTex);
         }
         
         return path;
@@ -713,6 +840,14 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
                 }
                 current = next;
             }
+        }
+        
+        // 警告ファイル作成（フォルダ存在に関係なく）
+        var fullPath = Path.Combine(Application.dataPath.Replace("/Assets", ""), path);
+        string warningPath = Path.Combine(fullPath, "ここのファイルを編集しないでください。消えます。.txt");
+        if (!File.Exists(warningPath))
+        {
+            File.WriteAllText(warningPath, "このフォルダ内のファイルはContactLensによって自動生成されています。\n手動で編集しても、レンズを外すと削除されます。\nマテリアルやテクスチャの編集は元ファイルに対して行ってください。");
         }
     }
 }
