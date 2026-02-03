@@ -23,19 +23,15 @@ public static class ContactLensThumbnail
     {
         string path = AssetDatabase.GUIDToAssetPath(guid);
         
-        // ContactLensフォルダ内のプレハブのみ対象
         if (!path.StartsWith(contactLensFolder)) return;
         if (!path.EndsWith(".prefab")) return;
         
-        // サムネイル画像を探す
         Texture2D thumb = GetThumbnail(path);
         if (thumb == null) return;
         
-        // アイコンサイズの判定（リスト表示 vs グリッド表示）
         if (selectionRect.height > 20)
         {
-            // グリッド表示（大きいアイコン）
-            float iconSize = selectionRect.height - 14; // ラベル分を引く
+            float iconSize = selectionRect.height - 14;
             Rect iconRect = new Rect(
                 selectionRect.x + (selectionRect.width - iconSize) / 2,
                 selectionRect.y,
@@ -46,7 +42,6 @@ public static class ContactLensThumbnail
         }
         else
         {
-            // リスト表示（小さいアイコン）
             Rect iconRect = new Rect(selectionRect.x, selectionRect.y, selectionRect.height, selectionRect.height);
             GUI.DrawTexture(iconRect, thumb, ScaleMode.ScaleToFit);
         }
@@ -59,11 +54,9 @@ public static class ContactLensThumbnail
             return cached;
         }
         
-        // プレハブと同名の_thumb.pngを探す
         string dir = Path.GetDirectoryName(prefabPath);
         string name = Path.GetFileNameWithoutExtension(prefabPath);
         
-        // 検索パターン: 同じフォルダ、textureフォルダ、texture/thumbフォルダ
         string[] searchPaths = new string[]
         {
             Path.Combine(dir, name + "_thumb.png"),
@@ -86,7 +79,6 @@ public static class ContactLensThumbnail
         return null;
     }
     
-    // キャッシュクリア用（サムネイル更新時に呼ぶ）
     [MenuItem("Pan/ContactLens/ClearThumbnailCache")]
     public static void ClearCache()
     {
