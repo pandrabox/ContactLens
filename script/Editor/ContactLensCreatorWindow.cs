@@ -271,21 +271,29 @@ public class ContactLensCreatorWindow : EditorWindow
             return;
         }
         
-        string exportPath = EditorUtility.SaveFilePanel(
-            "unitypackage出力",
+        string exportFolder = EditorUtility.SaveFolderPanel(
+            "配布物出力先を選択",
             "",
-            $"{currentState.productName}.unitypackage",
-            "unitypackage"
+            ""
         );
         
-        if (string.IsNullOrEmpty(exportPath)) return;
+        if (string.IsNullOrEmpty(exportFolder)) return;
         
-        // ReadMe生成（unitypackageと同じフォルダに、上書きしない）
+        // 製品名フォルダを作成
+        string productFolder = Path.Combine(exportFolder, currentState.productName);
+        if (!Directory.Exists(productFolder))
+        {
+            Directory.CreateDirectory(productFolder);
+        }
+        
+        string exportPath = Path.Combine(productFolder, $"{currentState.productName}.unitypackage");
+        
+        // ReadMe生成（製品名フォルダ内に、上書きしない）
         GenerateReadMe(exportPath);
         
         AssetDatabase.ExportPackage(projectPath, exportPath, ExportPackageOptions.Recurse);
-        Debug.Log($"[ContactLens] unitypackage出力完了: {exportPath}");
-        EditorUtility.DisplayDialog("完了", $"unitypackageを出力しました。\n{exportPath}", "OK");
+        Debug.Log($"[ContactLens] 配布物出力完了: {productFolder}");
+        EditorUtility.DisplayDialog("完了", $"配布物を出力しました。\n{productFolder}\n\nReadMe.txtはサンプルです。自由に書き換えてご利用ください。\n\nBoothなどで公開する際は、元アバターのライセンスを確認し、著作者から適切な許可を取得してください。", "OK");
     }
     
     private void GenerateReadMe(string unityPackagePath)

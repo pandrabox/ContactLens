@@ -310,7 +310,7 @@ public class ContactLensEditor : Editor
         
         AssetDatabase.Refresh();
         Debug.Log($"[ContactLens] リリース完了: {prefabPath}");
-        EditorUtility.DisplayDialog("完了", $"リリースしました。\n{prefabPath}", "OK");
+        EditorUtility.DisplayDialog("完了", $"リリースしました。\n{prefabPath}\n\n配布するためには管理画面から「配布物出力」をしてください。\n(このままリリースを続けることもできます)", "OK");
     }
 }
 
