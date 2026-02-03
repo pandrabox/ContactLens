@@ -138,9 +138,48 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         }
     }
     
+    void RestoreRenderer(SkinnedMeshRenderer smr)
+    {
+        if (smr == null) return;
+        
+        if (!string.IsNullOrEmpty(originalMaterialGUID))
+        {
+            var path = AssetDatabase.GUIDToAssetPath(originalMaterialGUID);
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat != null)
+            {
+                smr.sharedMaterial = mat;
+            }
+        }
+        if (originalMesh != null)
+        {
+            smr.sharedMesh = originalMesh;
+        }
+    }
+    
+    void ScheduleDeleteGeneratedAssets()
+    {
+        ScheduleDelete(generatedMaterialPath);
+        ScheduleDelete(generatedMainTexPath);
+        ScheduleDelete(generatedEmissionTexPath);
+        ScheduleDelete(generatedMeshPath);
+    }
+    
+    void ClearState()
+    {
+        originalMaterialGUID = "";
+        generatedMaterialPath = "";
+        generatedMainTexPath = "";
+        generatedEmissionTexPath = "";
+        generatedMeshPath = "";
+        appliedAvatarPath = "";
+        originalMesh = null;
+        modifiedMesh = null;
+    }
+    
     void RestoreOriginalAvatar()
     {
-        if (!string.IsNullOrEmpty(appliedAvatarPath) && !string.IsNullOrEmpty(originalMaterialGUID))
+        if (!string.IsNullOrEmpty(appliedAvatarPath))
         {
             var avatar = GameObject.Find(appliedAvatarPath);
             if (avatar != null)
@@ -148,83 +187,20 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
                 var body = avatar.transform.Find("Body");
                 if (body != null)
                 {
-                    var smr = body.GetComponent<SkinnedMeshRenderer>();
-                    if (smr != null)
-                    {
-                        var path = AssetDatabase.GUIDToAssetPath(originalMaterialGUID);
-                        var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
-                        if (mat != null)
-                        {
-                            smr.sharedMaterial = mat;
-                        }
-                        if (originalMesh != null)
-                        {
-                            smr.sharedMesh = originalMesh;
-                        }
-                    }
+                    RestoreRenderer(body.GetComponent<SkinnedMeshRenderer>());
                 }
             }
         }
-        
-        ScheduleDelete(generatedMaterialPath);
-        ScheduleDelete(generatedMainTexPath);
-        ScheduleDelete(generatedEmissionTexPath);
-        CleanupModifiedMesh();
-        
-        originalMaterialGUID = "";
-        generatedMeshPath = "";
-        generatedMaterialPath = "";
-        generatedMainTexPath = "";
-        generatedEmissionTexPath = "";
-        appliedAvatarPath = "";
-        originalMesh = null;
+        ScheduleDeleteGeneratedAssets();
+        ClearState();
     }
     
     void RestoreAndScheduleDelete()
     {
-        var smr = GetBodyRenderer();
-        
-        if (smr != null)
-        {
-            if (!string.IsNullOrEmpty(originalMaterialGUID))
-            {
-                var path = AssetDatabase.GUIDToAssetPath(originalMaterialGUID);
-                var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
-                if (mat != null)
-                {
-                    smr.sharedMaterial = mat;
-                }
-            }
-            if (originalMesh != null)
-            {
-                smr.sharedMesh = originalMesh;
-            }
-        }
-        
-        ScheduleDelete(generatedMaterialPath);
-        ScheduleDelete(generatedMainTexPath);
-        ScheduleDelete(generatedEmissionTexPath);
-        CleanupModifiedMesh();
-        
-        originalMaterialGUID = "";
-        generatedMeshPath = "";
-        generatedMaterialPath = "";
-        generatedMainTexPath = "";
-        generatedEmissionTexPath = "";
-        appliedAvatarPath = "";
-        originalMesh = null;
-        
+        RestoreRenderer(GetBodyRenderer());
+        ScheduleDeleteGeneratedAssets();
+        ClearState();
         Debug.Log("[ContactLens] 除去完了");
-    }
-    
-    void CleanupModifiedMesh()
-    {
-        if (!string.IsNullOrEmpty(generatedMeshPath))
-        {
-            ScheduleDelete(generatedMeshPath);
-            generatedMeshPath = "";
-        }
-        modifiedMesh = null;
     }
     
     static void ScheduleDelete(string path)
