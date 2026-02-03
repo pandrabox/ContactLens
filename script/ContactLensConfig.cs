@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace com.github.pandrabox.contactlens
 {
@@ -17,6 +18,15 @@ public class EyeParams
 }
 
 [System.Serializable]
+public class IdentificationData
+{
+    public float[] attributePosX;
+    public string[] animatorAvatarName;
+    public string[] formalName;
+    public int[] blendShapeCount;
+}
+
+[System.Serializable]
 public class AvatarInfo
 {
     public string displayName;
@@ -26,6 +36,7 @@ public class AvatarInfo
     public EyeParams leftEye;
     public EyeParams rightEye;
     public float scale = 1.0f;
+    public IdentificationData identification;
     
     public bool IsIslandType => pupilType == "island";
     
@@ -43,6 +54,9 @@ public static class ContactLensConfig
 {
     static readonly string ConfigPath = "Assets/Pan/ContactLens/config/avatars.json";
     static readonly string MaskFolder = "Assets/Pan/ContactLens/texture/Mask";
+    
+    const int ATTRIBUTE_INDEX = 26;
+    const int FLOOR_DIGITS = 7;
     
     static AvatarsConfig cachedConfig;
     static string[] cachedAvatarNames;
@@ -154,6 +168,131 @@ public static class ContactLensConfig
         cachedConfig = null;
         cachedAvatarNames = null;
         LoadConfig();
+    }
+    
+    /// <summary>
+    /// アバターを自動検出する
+    /// </summary>
+    public static string DetectAvatar(Transform avatarRoot)
+    {
+        if (avatarRoot == null) return null;
+        
+        // 1. AttributePoint判定
+        var result = DetectByAttributePoint(avatarRoot);
+        if (result != null) return result;
+        
+        // 2. AnimatorAvatarName判定
+        result = DetectByAnimatorName(avatarRoot);
+        if (result != null) return result;
+        
+        // 3. FormalName完全一致判定
+        result = DetectByFormalNameExact(avatarRoot);
+        if (result != null) return result;
+        
+        // 4. FormalName部分一致判定
+        result = DetectByFormalNamePartial(avatarRoot);
+        if (result != null) return result;
+        
+        return null;
+    }
+    
+    static string DetectByAttributePoint(Transform root)
+    {
+        var body = root.Find("Body");
+        if (body == null) return null;
+        
+        var smr = body.GetComponent<SkinnedMeshRenderer>();
+        if (smr == null || smr.sharedMesh == null || !smr.sharedMesh.isReadable) return null;
+        
+        var mesh = smr.sharedMesh;
+        if (mesh.vertexCount <= ATTRIBUTE_INDEX) return null;
+        
+        float attrX = FloorValue(mesh.vertices[ATTRIBUTE_INDEX].x);
+        int blendShapeCount = mesh.blendShapeCount;
+        
+        foreach (var kvp in Config.avatars)
+        {
+            var info = kvp.Value;
+            if (info.identification == null || info.identification.attributePosX == null) continue;
+            
+            for (int i = 0; i < info.identification.attributePosX.Length; i++)
+            {
+                if (attrX != FloorValue(info.identification.attributePosX[i])) continue;
+                
+                // BlendShapeCountチェックが必要な場合
+                if (info.identification.blendShapeCount != null && 
+                    i < info.identification.blendShapeCount.Length &&
+                    info.identification.blendShapeCount[i] > 0)
+                {
+                    if (blendShapeCount == info.identification.blendShapeCount[i])
+                        return kvp.Key;
+                    continue;
+                }
+                
+                return kvp.Key;
+            }
+        }
+        
+        return null;
+    }
+    
+    static string DetectByAnimatorName(Transform root)
+    {
+        var animator = root.GetComponent<Animator>();
+        if (animator == null || animator.avatar == null) return null;
+        
+        string avatarName = animator.avatar.name;
+        
+        foreach (var kvp in Config.avatars)
+        {
+            var info = kvp.Value;
+            if (info.identification == null || info.identification.animatorAvatarName == null) continue;
+            
+            if (info.identification.animatorAvatarName.Contains(avatarName))
+                return kvp.Key;
+        }
+        
+        return null;
+    }
+    
+    static string DetectByFormalNameExact(Transform root)
+    {
+        string objName = root.gameObject.name;
+        
+        foreach (var kvp in Config.avatars)
+        {
+            var info = kvp.Value;
+            if (info.identification == null || info.identification.formalName == null) continue;
+            
+            if (info.identification.formalName.Contains(objName))
+                return kvp.Key;
+        }
+        
+        return null;
+    }
+    
+    static string DetectByFormalNamePartial(Transform root)
+    {
+        string objName = root.gameObject.name;
+        
+        foreach (var kvp in Config.avatars)
+        {
+            var info = kvp.Value;
+            if (info.identification == null || info.identification.formalName == null) continue;
+            
+            foreach (var formalName in info.identification.formalName)
+            {
+                if (objName.Contains(formalName))
+                    return kvp.Key;
+            }
+        }
+        
+        return null;
+    }
+    
+    static float FloorValue(float value)
+    {
+        return Mathf.Floor(value * Mathf.Pow(10, FLOOR_DIGITS));
     }
 }
 

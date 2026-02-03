@@ -17,7 +17,21 @@
         "height": 0.1904
       },
       "scale": 0.92,
-      "readmeDisplayName": "コモド"
+      "readmeDisplayName": "コモド",
+      "identification": {
+        "attributePosX": [
+          -0.000832884
+        ],
+        "animatorAvatarName": [
+          "comodoAvatar"
+        ],
+        "formalName": [
+          "comodo"
+        ],
+        "blendShapeCount": [
+          -1
+        ]
+      }
     },
     "fel": {
       "displayName": "fel",
@@ -36,7 +50,21 @@
         "height": 0.1121
       },
       "scale": 0.98,
-      "readmeDisplayName": "フェル"
+      "readmeDisplayName": "フェル",
+      "identification": {
+        "attributePosX": [
+          -0.004839427
+        ],
+        "animatorAvatarName": [
+          "FelAvatar"
+        ],
+        "formalName": [
+          "Fel"
+        ],
+        "blendShapeCount": [
+          -1
+        ]
+      }
     },
     "heon": {
       "displayName": "heon",
@@ -55,7 +83,21 @@
         "height": 0.0837
       },
       "scale": 1.25,
-      "readmeDisplayName": "ヘオン"
+      "readmeDisplayName": "ヘオン",
+      "identification": {
+        "attributePosX": [
+          0.00661528
+        ],
+        "animatorAvatarName": [
+          "HeonAvatar"
+        ],
+        "formalName": [
+          "Heon"
+        ],
+        "blendShapeCount": [
+          -1
+        ]
+      }
     },
     "kewf": {
       "displayName": "kewf",
@@ -74,7 +116,21 @@
         "height": 0.0627
       },
       "scale": 0.98,
-      "readmeDisplayName": "キューフ"
+      "readmeDisplayName": "キューフ",
+      "identification": {
+        "attributePosX": [
+          -0.004607938
+        ],
+        "animatorAvatarName": [
+          "KewfAvatar"
+        ],
+        "formalName": [
+          "Kewf"
+        ],
+        "blendShapeCount": [
+          -1
+        ]
+      }
     },
     "flat12": {
       "displayName": "flat Ver1&2",
@@ -93,7 +149,25 @@
         "height": 0.1978
       },
       "scale": 1.0,
-      "readmeDisplayName": "フラット(通常, 2nd)"
+      "readmeDisplayName": "フラット(通常, 2nd)",
+      "identification": {
+        "attributePosX": [
+          -0.0002531733,
+          -0.03153284
+        ],
+        "animatorAvatarName": [
+          "flatver.1.01Avatar",
+          "flatVer2Avatar"
+        ],
+        "formalName": [
+          "flatver.1.01",
+          "flatVer2"
+        ],
+        "blendShapeCount": [
+          -1,
+          42
+        ]
+      }
     },
     "flat3if": {
       "displayName": "flat Ver3&If",
@@ -112,7 +186,25 @@
         "height": 0.1978
       },
       "scale": 1.0,
-      "readmeDisplayName": "フラット(If, 4th)"
+      "readmeDisplayName": "フラット(If, 4th)",
+      "identification": {
+        "attributePosX": [
+          -0.03153284,
+          -0.02934147
+        ],
+        "animatorAvatarName": [
+          "flatVer3Avatar",
+          "flatIFAvatar"
+        ],
+        "formalName": [
+          "flatVer3",
+          "flatIF"
+        ],
+        "blendShapeCount": [
+          64,
+          -1
+        ]
+      }
     }
   },
   "baseAvatar": "flat12"

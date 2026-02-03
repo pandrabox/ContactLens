@@ -63,7 +63,25 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         if (!Application.isPlaying)
         {
             CleanupInvalidState();
+            
+            // 初回挿入時のみ自動検出
+            if (string.IsNullOrEmpty(generatedMaterialPath) && transform.parent != null)
+            {
+                AutoDetectAvatar();
+            }
+            
             EditorApplication.update += WaitAndApply;
+        }
+    }
+    
+    void AutoDetectAvatar()
+    {
+        var detected = ContactLensConfig.DetectAvatar(transform.parent);
+        if (detected != null)
+        {
+            targetAvatar = detected;
+            Debug.Log($"[ContactLens] アバター自動検出: {detected}");
+            EditorUtility.SetDirty(this);
         }
     }
     
@@ -122,9 +140,14 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
             RestoreOriginalAvatar();
             
             EditorApplication.delayCall += () => {
-                if (this != null && lensTexture != null)
+                if (this != null && transform.parent != null)
                 {
-                    Apply();
+                    AutoDetectAvatar();
+                    
+                    if (lensTexture != null)
+                    {
+                        Apply();
+                    }
                 }
             };
         }
