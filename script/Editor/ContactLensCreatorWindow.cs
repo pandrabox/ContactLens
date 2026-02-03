@@ -127,6 +127,67 @@ public class ContactLensCreatorWindow : EditorWindow
                 EditorGUILayout.HelpBox("作者名と製品名を入力してください。", MessageType.Warning);
             }
         }
+        
+        EditorGUILayout.Space(10);
+        
+        // アクティブなアバターにひな形を作成
+        if (GUILayout.Button("アクティブなアバターにひな形を作成", GUILayout.Height(25)))
+        {
+            CreateTemplateOnActiveAvatar();
+        }
+    }
+    
+    private void CreateTemplateOnActiveAvatar()
+    {
+        // アクティブなGameObjectを取得
+        var activeObj = Selection.activeGameObject;
+        if (activeObj == null)
+        {
+            EditorUtility.DisplayDialog("エラー", "アバターを選択してください。", "OK");
+            return;
+        }
+        
+        // アバターのルートを探す（Bodyがある階層）
+        Transform avatarRoot = null;
+        if (activeObj.transform.Find("Body") != null)
+        {
+            avatarRoot = activeObj.transform;
+        }
+        else if (activeObj.transform.parent != null && activeObj.transform.parent.Find("Body") != null)
+        {
+            avatarRoot = activeObj.transform.parent;
+        }
+        
+        if (avatarRoot == null)
+        {
+            EditorUtility.DisplayDialog("エラー", "アバター（Bodyを持つオブジェクト）を選択してください。", "OK");
+            return;
+        }
+        
+        // 既存のContactLensがあるか確認
+        var existingLens = avatarRoot.GetComponentInChildren<ContactLens>();
+        if (existingLens != null)
+        {
+            EditorUtility.DisplayDialog("エラー", "このアバターには既にContactLensがあります。", "OK");
+            Selection.activeGameObject = existingLens.gameObject;
+            return;
+        }
+        
+        // ひな形を作成
+        var lensObj = new GameObject("ContactLens");
+        lensObj.transform.SetParent(avatarRoot);
+        lensObj.transform.localPosition = Vector3.zero;
+        lensObj.transform.localRotation = Quaternion.identity;
+        lensObj.transform.localScale = Vector3.one;
+        
+        var lens = lensObj.AddComponent<ContactLens>();
+        lens.sourceAvatar = sourceAvatar;
+        lens.targetAvatar = sourceAvatar;
+        
+        Selection.activeGameObject = lensObj;
+        EditorGUIUtility.PingObject(lensObj);
+        
+        Debug.Log($"[ContactLens] ひな形を作成: {avatarRoot.name}/ContactLens (アバター: {sourceAvatar})");
     }
     
     string[] GetDisplayNames(string[] avatarNames)

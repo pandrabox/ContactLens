@@ -10,15 +10,26 @@ namespace com.github.pandrabox.contactlens
 public class ContactLensEditor : Editor
 {
     string prevTargetAvatar;
-    string prevSourceAvatar;
     bool prevEnablePupil;
+    Color prevPupilColor;
+    float prevPupilAlpha;
+    float prevScaleAdjust;
+    float prevHueShift;
+    Texture2D prevLensTexture;
+    
+    bool hasUnappliedChanges = false;
     
     void OnEnable()
     {
         var lens = (ContactLens)target;
         prevTargetAvatar = lens.targetAvatar;
-        prevSourceAvatar = lens.sourceAvatar;
         prevEnablePupil = lens.enablePupil;
+        prevPupilColor = lens.pupilColor;
+        prevPupilAlpha = lens.pupilAlpha;
+        prevScaleAdjust = lens.scaleAdjust;
+        prevHueShift = lens.hueShift;
+        prevLensTexture = lens.lensTexture;
+        hasUnappliedChanges = false;
     }
     
     public override void OnInspectorGUI()
@@ -36,9 +47,33 @@ public class ContactLensEditor : Editor
             return;
         }
         
+        // 作成時アバター（ラベル表示のみ）
+        var sourceInfo = ContactLensConfig.GetAvatar(lens.sourceAvatar);
+        string sourceDisplay = sourceInfo?.displayName ?? lens.sourceAvatar;
+        EditorGUILayout.LabelField($"作成時アバター: {sourceDisplay}", EditorStyles.miniLabel);
+        
+        EditorGUILayout.Space(5);
+        
         // レンズ設定
         EditorGUILayout.LabelField("レンズ設定", EditorStyles.boldLabel);
         lens.lensTexture = (Texture2D)EditorGUILayout.ObjectField("レンズテクスチャ", lens.lensTexture, typeof(Texture2D), false);
+        
+        // レンズテクスチャ変更時に即時更新
+        if (lens.lensTexture != prevLensTexture)
+        {
+            prevLensTexture = lens.lensTexture;
+            if (lens.lensTexture != null)
+            {
+                lens.Restore();
+                lens.Apply();
+                prevEnablePupil = lens.enablePupil;
+                prevPupilColor = lens.pupilColor;
+                prevPupilAlpha = lens.pupilAlpha;
+                prevScaleAdjust = lens.scaleAdjust;
+                prevHueShift = lens.hueShift;
+                hasUnappliedChanges = false;
+            }
+        }
         
         EditorGUILayout.Space();
         
@@ -66,64 +101,67 @@ public class ContactLensEditor : Editor
             EditorGUI.indentLevel--;
         }
         
-        // 瞳孔Hide発動時のヒント
-        var avatarInfo = ContactLensConfig.GetAvatar(lens.targetAvatar);
-        if (avatarInfo != null && avatarInfo.IsIslandType && (!lens.enablePupil || lens.pupilAlpha < 1f))
-        {
-            EditorGUILayout.HelpBox("瞳孔メッシュは自動的に非表示になります", MessageType.Info);
-        }
-        
         EditorGUILayout.Space();
         
-        // 上級者設定（折りたたみ）
-        lens.showAdvancedSettings = EditorGUILayout.Foldout(lens.showAdvancedSettings, "上級者設定");
-        if (lens.showAdvancedSettings)
+        // スケール調整と色相シフト（製作者モード中は非表示）
+        if (!ContactLensCreatorWindow.IsCreating)
         {
-            EditorGUI.indentLevel++;
+            lens.scaleAdjust = EditorGUILayout.Slider("目のスケール", lens.scaleAdjust, 0.65f, 1.35f);
+            lens.hueShift = EditorGUILayout.Slider("色相シフト", lens.hueShift, 0f, 1f);
             
-            // レンズ作成元アバター (from)
-            EditorGUILayout.LabelField("レンズ作成元", EditorStyles.miniLabel);
-            int sourceIndex = ContactLensConfig.GetAvatarIndex(lens.sourceAvatar);
-            int newSourceIndex = EditorGUILayout.Popup(sourceIndex, displayNames);
-            if (newSourceIndex >= 0 && newSourceIndex < avatarNames.Length)
-            {
-                lens.sourceAvatar = avatarNames[newSourceIndex];
-            }
-            
-            if (lens.sourceAvatar != lens.targetAvatar)
-            {
-                EditorGUILayout.HelpBox($"テクスチャ変換: {lens.sourceAvatar} → {lens.targetAvatar}", MessageType.Info);
-            }
-            
-
-            EditorGUI.indentLevel--;
+            EditorGUILayout.Space();
         }
         
-        // 設定変更時に自動更新（scaleAdjustは除外）
-        bool settingsChanged = lens.targetAvatar != prevTargetAvatar ||
-                               lens.sourceAvatar != prevSourceAvatar ||
-                               lens.enablePupil != prevEnablePupil;
-        
-        if (settingsChanged)
+        // 設定変更時にアバター変更のみ自動更新
+        if (lens.targetAvatar != prevTargetAvatar)
         {
             prevTargetAvatar = lens.targetAvatar;
-            prevSourceAvatar = lens.sourceAvatar;
-            prevEnablePupil = lens.enablePupil;
             
             if (!string.IsNullOrEmpty(lens.generatedMaterialPath))
             {
                 lens.Restore();
                 lens.Apply();
+                // 適用したので前回値を更新
+                prevEnablePupil = lens.enablePupil;
+                prevPupilColor = lens.pupilColor;
+                prevPupilAlpha = lens.pupilAlpha;
+                prevScaleAdjust = lens.scaleAdjust;
+                prevHueShift = lens.hueShift;
+                hasUnappliedChanges = false;
             }
         }
         
-        EditorGUILayout.Space();
+        // 他の設定変更をチェック
+        bool settingsChanged = lens.enablePupil != prevEnablePupil ||
+                               lens.pupilColor != prevPupilColor ||
+                               !Mathf.Approximately(lens.pupilAlpha, prevPupilAlpha) ||
+                               !Mathf.Approximately(lens.scaleAdjust, prevScaleAdjust) ||
+                               !Mathf.Approximately(lens.hueShift, prevHueShift);
+        
+        if (settingsChanged && !string.IsNullOrEmpty(lens.generatedMaterialPath))
+        {
+            hasUnappliedChanges = true;
+        }
+        
+        // 未適用の設定がある場合の警告
+        if (hasUnappliedChanges)
+        {
+            EditorGUILayout.HelpBox("適用されていない設定があります。更新を押して下さい", MessageType.Warning);
+        }
         
         // 更新ボタン
         if (GUILayout.Button("更新", GUILayout.Height(30)))
         {
             lens.Restore();
             lens.Apply();
+            
+            // 前回値を更新
+            prevEnablePupil = lens.enablePupil;
+            prevPupilColor = lens.pupilColor;
+            prevPupilAlpha = lens.pupilAlpha;
+            prevScaleAdjust = lens.scaleAdjust;
+            prevHueShift = lens.hueShift;
+            hasUnappliedChanges = false;
         }
         
         // 製作者モード中のみリリースボタン表示

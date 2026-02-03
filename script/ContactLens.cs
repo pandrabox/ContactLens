@@ -26,6 +26,12 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     
     [Header("上級者設定")]
     public bool showAdvancedSettings = false;
+    [Range(0.65f, 1.35f)]
+    public float scaleAdjust = 1.0f;
+    
+    [Range(0f, 1f)]
+    public float hueShift = 0f;
+    
     static readonly Vector3 CollapsePosition = new Vector3(0f, 0f, 1.5f);
     
     [HideInInspector] public string originalMaterialGUID;
@@ -424,8 +430,8 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
             resultPixels[i] = new Color(0, 0, 0, 0);
         }
         
-        // JSONのscaleとscaleAdjustを掛け合わせる
-        float totalScale = dstInfo.scale;
+        // 相対スケール: dst / src * ユーザー調整
+        float totalScale = (dstInfo.scale / srcInfo.scale) * scaleAdjust;
         
         TransformEye(srcReadable, srcInfo.leftEye, dstInfo.leftEye, srcRes, targetResolution, resultPixels, totalScale);
         TransformEye(srcReadable, srcInfo.rightEye, dstInfo.rightEye, srcRes, targetResolution, resultPixels, totalScale);
@@ -437,9 +443,12 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     
     void TransformEye(Texture2D src, EyeParams srcEye, EyeParams dstEye, int srcRes, int dstRes, Color[] resultPixels, float scale)
     {
-        // ソース領域
+        // UV座標系: (0,0)が左下、(1,1)が右上
+        // ピクセル座標系（GetPixels/SetPixels）: (0,0)が左下、(width,height)が右上
+        
+        // ソース領域（ピクセル座標、左下原点）
         int srcCx = (int)(srcEye.cx * srcRes);
-        int srcCy = (int)((1 - srcEye.cy) * srcRes);
+        int srcCy = (int)(srcEye.cy * srcRes);  // UV.yをそのままピクセルYに
         int srcW = (int)(srcEye.width * srcRes);
         int srcH = (int)(srcEye.height * srcRes);
         
@@ -450,7 +459,7 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         
         // デスト領域（scaleを適用）
         int dstCx = (int)(dstEye.cx * dstRes);
-        int dstCy = (int)((1 - dstEye.cy) * dstRes);
+        int dstCy = (int)(dstEye.cy * dstRes);
         int dstW = (int)(dstEye.width * dstRes * scale);
         int dstH = (int)(dstEye.height * dstRes * scale);
         
@@ -462,7 +471,8 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         int cropH = srcY2 - srcY1;
         if (cropW <= 0 || cropH <= 0) return;
         
-        var srcPixels = src.GetPixels(srcX1, srcRes - srcY2, cropW, cropH);
+        // GetPixelsは左下原点
+        var srcPixels = src.GetPixels(srcX1, srcY1, cropW, cropH);
         
         var eyeTex = new Texture2D(cropW, cropH, TextureFormat.RGBA32, false);
         eyeTex.SetPixels(srcPixels);
@@ -471,6 +481,7 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         var resized = Resize(eyeTex, dstW, dstH);
         var resizedPixels = resized.GetPixels();
         
+        // 書き込み（左下原点）
         for (int y = 0; y < dstH; y++)
         {
             for (int x = 0; x < dstW; x++)
@@ -480,7 +491,7 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
                 if (dx < 0 || dx >= dstRes || dy < 0 || dy >= dstRes) continue;
                 
                 int srcIdx = y * dstW + x;
-                int dstIdx = (dstRes - 1 - dy) * dstRes + dx;
+                int dstIdx = dy * dstRes + dx;
                 
                 if (srcIdx < resizedPixels.Length && dstIdx < resultPixels.Length)
                 {
@@ -535,6 +546,23 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         
         var bgPixels = bgReadable.GetPixels();
         var lensPixels = lensTransformed.GetPixels();
+        
+        // 色相シフト適用
+        if (hueShift > 0.001f)
+        {
+            for (int i = 0; i < lensPixels.Length; i++)
+            {
+                if (lensPixels[i].a > 0.001f)
+                {
+                    float h, s, v;
+                    Color.RGBToHSV(lensPixels[i], out h, out s, out v);
+                    h = (h + hueShift) % 1f;
+                    Color shifted = Color.HSVToRGB(h, s, v);
+                    shifted.a = lensPixels[i].a;
+                    lensPixels[i] = shifted;
+                }
+            }
+        }
         var eyeAreaPixels = eyeAreaReadable?.GetPixels();
         var pupilTexturePixels = pupilTextureReadable?.GetPixels();
         var pupilIslandPixels = pupilIslandReadable?.GetPixels();

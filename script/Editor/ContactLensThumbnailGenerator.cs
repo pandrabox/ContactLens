@@ -9,20 +9,41 @@ namespace com.github.pandrabox.contactlens
 public static class ContactLensThumbnailGenerator
 {
     const int ThumbnailSize = 512;
-    static readonly Vector3 CameraLocalPosition = new Vector3(0f, -1.04f, 1.52f);
-    static readonly Vector3 CameraLocalRotation = new Vector3(270f, 180f, 0f);
     const float CameraOrthographicSize = 0.13f;
+    const float CameraDistance = 0.5f;
     
     public static string Generate(Transform bodyTransform, string savePath)
     {
         if (bodyTransform == null) return null;
         
+        // Headボーンを探す
+        Transform head = FindBone(bodyTransform, "Head");
+        if (head == null)
+        {
+            // Headが見つからない場合はArmatureから探す
+            var armature = bodyTransform.parent?.Find("Armature");
+            if (armature != null)
+            {
+                head = FindBoneRecursive(armature, "Head");
+            }
+        }
+        
+        Vector3 targetPosition;
+        if (head != null)
+        {
+            // Headの位置を基準に、目の高さに合わせる
+            targetPosition = head.position + Vector3.up * 0.13f;
+        }
+        else
+        {
+            // フォールバック：Bodyの位置から推定
+            targetPosition = bodyTransform.position + Vector3.up * 1.5f;
+        }
+        
         // カメラ生成
         var camObj = new GameObject("_TmbCamera_Temp");
-        camObj.transform.SetParent(bodyTransform);
-        camObj.transform.localPosition = CameraLocalPosition;
-        camObj.transform.localRotation = Quaternion.Euler(CameraLocalRotation);
-        camObj.transform.localScale = Vector3.one;
+        camObj.transform.position = targetPosition + Vector3.forward * CameraDistance;
+        camObj.transform.LookAt(targetPosition);
         
         var cam = camObj.AddComponent<Camera>();
         cam.orthographic = true;
@@ -67,6 +88,31 @@ public static class ContactLensThumbnailGenerator
         
         Debug.Log($"[ContactLens] サムネイル生成: {savePath}");
         return savePath;
+    }
+    
+    static Transform FindBone(Transform body, string boneName)
+    {
+        // 直接の子から探す
+        foreach (Transform child in body)
+        {
+            if (child.name.Contains(boneName))
+                return child;
+        }
+        return null;
+    }
+    
+    static Transform FindBoneRecursive(Transform parent, string boneName)
+    {
+        foreach (Transform child in parent)
+        {
+            if (child.name.Contains(boneName))
+                return child;
+            
+            var found = FindBoneRecursive(child, boneName);
+            if (found != null)
+                return found;
+        }
+        return null;
     }
     
     public static string GenerateForLens(ContactLens lens)
