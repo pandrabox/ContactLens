@@ -9,19 +9,32 @@ namespace com.github.pandrabox.contactlens
 [CustomEditor(typeof(ContactLens))]
 public class ContactLensEditor : Editor
 {
-    ContactLens.AvatarMode prevAvatarMode;
+    string prevTargetAvatar;
+    string prevSourceAvatar;
     bool prevEnablePupil;
     
     void OnEnable()
     {
         var lens = (ContactLens)target;
-        prevAvatarMode = lens.avatarMode;
+        prevTargetAvatar = lens.targetAvatar;
+        prevSourceAvatar = lens.sourceAvatar;
         prevEnablePupil = lens.enablePupil;
     }
     
     public override void OnInspectorGUI()
     {
         var lens = (ContactLens)target;
+        var avatarNames = ContactLensConfig.AvatarNames;
+        
+        if (avatarNames == null || avatarNames.Length == 0)
+        {
+            EditorGUILayout.HelpBox("avatars.json が読み込めません", MessageType.Error);
+            if (GUILayout.Button("設定を再読み込み"))
+            {
+                ContactLensConfig.Reload();
+            }
+            return;
+        }
         
         // レンズ設定
         EditorGUILayout.LabelField("レンズ設定", EditorStyles.boldLabel);
@@ -29,14 +42,15 @@ public class ContactLensEditor : Editor
         
         EditorGUILayout.Space();
         
-        // アバターモード選択
-        EditorGUILayout.LabelField("アバターモード", EditorStyles.boldLabel);
-        EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Toggle(lens.avatarMode == ContactLens.AvatarMode.Ver12, "Ver1&2", EditorStyles.radioButton))
-            lens.avatarMode = ContactLens.AvatarMode.Ver12;
-        if (GUILayout.Toggle(lens.avatarMode == ContactLens.AvatarMode.Ver3If, "Ver3&If", EditorStyles.radioButton))
-            lens.avatarMode = ContactLens.AvatarMode.Ver3If;
-        EditorGUILayout.EndHorizontal();
+        // アバター選択 (to)
+        EditorGUILayout.LabelField("適用先アバター", EditorStyles.boldLabel);
+        int targetIndex = ContactLensConfig.GetAvatarIndex(lens.targetAvatar);
+        string[] displayNames = GetDisplayNames(avatarNames);
+        int newTargetIndex = EditorGUILayout.Popup(targetIndex, displayNames);
+        if (newTargetIndex >= 0 && newTargetIndex < avatarNames.Length)
+        {
+            lens.targetAvatar = avatarNames[newTargetIndex];
+        }
         
         EditorGUILayout.Space();
         
@@ -52,32 +66,48 @@ public class ContactLensEditor : Editor
             EditorGUI.indentLevel--;
         }
         
-        // Ver3&Ifで瞳孔Hide発動時のヒント
-        if (lens.avatarMode == ContactLens.AvatarMode.Ver3If && (!lens.enablePupil || lens.pupilAlpha < 1f))
+        // 瞳孔Hide発動時のヒント
+        var avatarInfo = ContactLensConfig.GetAvatar(lens.targetAvatar);
+        if (avatarInfo != null && avatarInfo.IsIslandType && (!lens.enablePupil || lens.pupilAlpha < 1f))
         {
             EditorGUILayout.HelpBox("瞳孔メッシュは自動的に非表示になります", MessageType.Info);
         }
         
         EditorGUILayout.Space();
         
-        // マスク設定（折りたたみ）
-        lens.showMaskSettings = EditorGUILayout.Foldout(lens.showMaskSettings, "マスク設定");
-        if (lens.showMaskSettings)
+        // 上級者設定（折りたたみ）
+        lens.showAdvancedSettings = EditorGUILayout.Foldout(lens.showAdvancedSettings, "上級者設定");
+        if (lens.showAdvancedSettings)
         {
             EditorGUI.indentLevel++;
-            lens.pupilMask12 = (Texture2D)EditorGUILayout.ObjectField("瞳孔 Ver1&2", lens.pupilMask12, typeof(Texture2D), false);
-            lens.pupilMask3If = (Texture2D)EditorGUILayout.ObjectField("瞳孔 Ver3&If", lens.pupilMask3If, typeof(Texture2D), false);
-            lens.eyeMask = (Texture2D)EditorGUILayout.ObjectField("EyeMask", lens.eyeMask, typeof(Texture2D), false);
+            
+            // レンズ作成元アバター (from)
+            EditorGUILayout.LabelField("レンズ作成元", EditorStyles.miniLabel);
+            int sourceIndex = ContactLensConfig.GetAvatarIndex(lens.sourceAvatar);
+            int newSourceIndex = EditorGUILayout.Popup(sourceIndex, displayNames);
+            if (newSourceIndex >= 0 && newSourceIndex < avatarNames.Length)
+            {
+                lens.sourceAvatar = avatarNames[newSourceIndex];
+            }
+            
+            if (lens.sourceAvatar != lens.targetAvatar)
+            {
+                EditorGUILayout.HelpBox($"テクスチャ変換: {lens.sourceAvatar} → {lens.targetAvatar}", MessageType.Info);
+            }
+            
+
             EditorGUI.indentLevel--;
         }
         
-        // 設定変更時に自動更新
-        bool settingsChanged = lens.avatarMode != prevAvatarMode ||
+        // 設定変更時に自動更新（scaleAdjustは除外）
+        bool settingsChanged = lens.targetAvatar != prevTargetAvatar ||
+                               lens.sourceAvatar != prevSourceAvatar ||
                                lens.enablePupil != prevEnablePupil;
         
         if (settingsChanged)
         {
-            prevAvatarMode = lens.avatarMode;
+            prevTargetAvatar = lens.targetAvatar;
+            prevSourceAvatar = lens.sourceAvatar;
             prevEnablePupil = lens.enablePupil;
             
             if (!string.IsNullOrEmpty(lens.generatedMaterialPath))
@@ -115,6 +145,17 @@ public class ContactLensEditor : Editor
         }
     }
     
+    string[] GetDisplayNames(string[] avatarNames)
+    {
+        var names = new string[avatarNames.Length];
+        for (int i = 0; i < avatarNames.Length; i++)
+        {
+            var info = ContactLensConfig.GetAvatar(avatarNames[i]);
+            names[i] = info?.displayName ?? avatarNames[i];
+        }
+        return names;
+    }
+    
     private void EnsureFolder(string path)
     {
         if (AssetDatabase.IsValidFolder(path)) return;
@@ -147,11 +188,9 @@ public class ContactLensEditor : Editor
         string prefabPath = $"{projectPath}/{prefabName}.prefab";
         string thumbPath = $"{tmbFolderPath}/{prefabName}_thumb.png";
         
-        // フォルダ確保
         EnsureFolder(texFolderPath);
         EnsureFolder(tmbFolderPath);
         
-        // テクスチャがres/texにない場合はコピー
         string texturePath = AssetDatabase.GetAssetPath(lens.lensTexture);
         Texture2D textureToUse = lens.lensTexture;
         
@@ -165,13 +204,11 @@ public class ContactLensEditor : Editor
             Debug.Log($"[ContactLens] テクスチャをコピー: {destTexPath}");
         }
         
-        // 適用状態を確保
         if (string.IsNullOrEmpty(lens.generatedMaterialPath))
         {
             lens.Apply();
         }
         
-        // サムネイル生成
         var avatar = lens.transform.parent;
         if (avatar != null)
         {
@@ -185,21 +222,16 @@ public class ContactLensEditor : Editor
             }
         }
         
-        // prefab作成
         GameObject prefabObj = new GameObject(prefabName);
         var newLens = prefabObj.AddComponent<ContactLens>();
         
-        // 設定コピー（テクスチャはコピー先を参照）
         newLens.lensTexture = textureToUse;
-        newLens.avatarMode = lens.avatarMode;
+        newLens.targetAvatar = lens.targetAvatar;
+        newLens.sourceAvatar = lens.sourceAvatar;
         newLens.enablePupil = lens.enablePupil;
         newLens.pupilColor = lens.pupilColor;
         newLens.pupilAlpha = lens.pupilAlpha;
-        newLens.pupilMask12 = lens.pupilMask12;
-        newLens.pupilMask3If = lens.pupilMask3If;
-        newLens.eyeMask = lens.eyeMask;
         
-        // prefab保存
         PrefabUtility.SaveAsPrefabAsset(prefabObj, prefabPath);
         DestroyImmediate(prefabObj);
         

@@ -1,0 +1,113 @@
+{
+  "avatars": {
+    "comodo": {
+      "displayName": "comodo",
+      "resolution": 2048,
+      "pupilType": "texture",
+      "leftEye": {
+        "cx": 0.1237,
+        "cy": 0.2403,
+        "width": 0.1733,
+        "height": 0.1909
+      },
+      "rightEye": {
+        "cx": 0.8757,
+        "cy": 0.2403,
+        "width": 0.1729,
+        "height": 0.1904
+      },
+      "scale": 0.92
+    },
+    "fel": {
+      "displayName": "fel",
+      "resolution": 4096,
+      "pupilType": "texture",
+      "leftEye": {
+        "cx": 0.1365,
+        "cy": 0.6739,
+        "width": 0.1072,
+        "height": 0.1121
+      },
+      "rightEye": {
+        "cx": 0.8633,
+        "cy": 0.6739,
+        "width": 0.1072,
+        "height": 0.1121
+      },
+      "scale": 0.98
+    },
+    "heon": {
+      "displayName": "heon",
+      "resolution": 4096,
+      "pupilType": "island",
+      "leftEye": {
+        "cx": 0.0595,
+        "cy": 0.6552,
+        "width": 0.0842,
+        "height": 0.0837
+      },
+      "rightEye": {
+        "cx": 0.9402,
+        "cy": 0.6552,
+        "width": 0.0842,
+        "height": 0.0837
+      },
+      "scale": 1.25
+    },
+    "kewf": {
+      "displayName": "kewf",
+      "resolution": 4096,
+      "pupilType": "island",
+      "leftEye": {
+        "cx": 0.1796,
+        "cy": 0.7385,
+        "width": 0.0547,
+        "height": 0.0627
+      },
+      "rightEye": {
+        "cx": 0.8199,
+        "cy": 0.7385,
+        "width": 0.0549,
+        "height": 0.0627
+      },
+      "scale": 0.98
+    },
+    "flat12": {
+      "displayName": "flat Ver1&2",
+      "resolution": 2048,
+      "pupilType": "texture",
+      "leftEye": {
+        "cx": 0.1276,
+        "cy": 0.6717,
+        "width": 0.166,
+        "height": 0.1978
+      },
+      "rightEye": {
+        "cx": 0.8718,
+        "cy": 0.6717,
+        "width": 0.1665,
+        "height": 0.1978
+      },
+      "scale": 1.0
+    },
+    "flat3if": {
+      "displayName": "flat Ver3&If",
+      "resolution": 2048,
+      "pupilType": "island",
+      "leftEye": {
+        "cx": 0.1276,
+        "cy": 0.6717,
+        "width": 0.166,
+        "height": 0.1978
+      },
+      "rightEye": {
+        "cx": 0.8718,
+        "cy": 0.6717,
+        "width": 0.1665,
+        "height": 0.1978
+      },
+      "scale": 1.0
+    }
+  },
+  "baseAvatar": "flat12"
+}

@@ -10,7 +10,7 @@ public class ContactLensCreatorWindow : EditorWindow
 {
     private string authorName = "";
     private string productName = "";
-    private ContactLens.AvatarMode avatarMode = ContactLens.AvatarMode.Ver12;
+    private string sourceAvatar = "flat12";  // レンズ作成元アバター
     
     private const string TmpPath = "Assets/Pan/ContactLens/tmp";
     private const string StateFileName = "creator_state.json";
@@ -20,7 +20,7 @@ public class ContactLensCreatorWindow : EditorWindow
     {
         public string authorName;
         public string productName;
-        public int avatarMode;
+        public string sourceAvatar;
         public bool isCreating;
     }
     
@@ -30,7 +30,7 @@ public class ContactLensCreatorWindow : EditorWindow
     public static void ShowWindow()
     {
         var window = GetWindow<ContactLensCreatorWindow>("ContactLens 製作者モード");
-        window.minSize = new Vector2(400, 300);
+        window.minSize = new Vector2(400, 320);
         window.LoadState();
     }
     
@@ -38,6 +38,7 @@ public class ContactLensCreatorWindow : EditorWindow
     public static string ProjectPath => currentState != null && currentState.isCreating 
         ? $"Assets/{currentState.authorName}/{currentState.productName}" 
         : null;
+    public static string SourceAvatar => currentState?.sourceAvatar ?? "flat12";
     
     private void OnEnable()
     {
@@ -46,6 +47,8 @@ public class ContactLensCreatorWindow : EditorWindow
     
     private void OnGUI()
     {
+        var avatarNames = ContactLensConfig.AvatarNames;
+        
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("製作者モード", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox("コンタクトレンズの配布用unitypackageを作成します。\n\n" +
@@ -72,16 +75,27 @@ public class ContactLensCreatorWindow : EditorWindow
             
             EditorGUILayout.Space(5);
             
-            EditorGUILayout.LabelField("対象アバター", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("作成時に使ったアバターを選んでください", EditorStyles.miniLabel);
-            avatarMode = (ContactLens.AvatarMode)EditorGUILayout.EnumPopup(avatarMode);
+            EditorGUILayout.LabelField("レンズ作成元アバター", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("どのアバター用にレンズを作成しますか？", EditorStyles.miniLabel);
+            
+            if (avatarNames != null && avatarNames.Length > 0)
+            {
+                int sourceIndex = ContactLensConfig.GetAvatarIndex(sourceAvatar);
+                string[] displayNames = GetDisplayNames(avatarNames);
+                int newIndex = EditorGUILayout.Popup(sourceIndex, displayNames);
+                if (newIndex >= 0 && newIndex < avatarNames.Length)
+                {
+                    sourceAvatar = avatarNames[newIndex];
+                }
+            }
         }
         
         EditorGUILayout.Space(10);
         
         if (isCreating)
         {
-            EditorGUILayout.HelpBox($"製作中: Assets/{currentState.authorName}/{currentState.productName}", MessageType.None);
+            EditorGUILayout.HelpBox($"製作中: Assets/{currentState.authorName}/{currentState.productName}\n" +
+                $"作成元: {GetDisplayName(currentState.sourceAvatar)}", MessageType.None);
             
             EditorGUILayout.Space(5);
             
@@ -115,11 +129,27 @@ public class ContactLensCreatorWindow : EditorWindow
         }
     }
     
+    string[] GetDisplayNames(string[] avatarNames)
+    {
+        var names = new string[avatarNames.Length];
+        for (int i = 0; i < avatarNames.Length; i++)
+        {
+            var info = ContactLensConfig.GetAvatar(avatarNames[i]);
+            names[i] = info?.displayName ?? avatarNames[i];
+        }
+        return names;
+    }
+    
+    string GetDisplayName(string avatarName)
+    {
+        var info = ContactLensConfig.GetAvatar(avatarName);
+        return info?.displayName ?? avatarName;
+    }
+    
     private void StartCreation()
     {
         string projectPath = $"Assets/{authorName}/{productName}";
         
-        // フォルダ作成
         if (!AssetDatabase.IsValidFolder($"Assets/{authorName}"))
         {
             AssetDatabase.CreateFolder("Assets", authorName);
@@ -129,28 +159,24 @@ public class ContactLensCreatorWindow : EditorWindow
             AssetDatabase.CreateFolder($"Assets/{authorName}", productName);
         }
         
-        // res フォルダ作成
         string resPath = $"{projectPath}/res";
         if (!AssetDatabase.IsValidFolder(resPath))
         {
             AssetDatabase.CreateFolder(projectPath, "res");
         }
         
-        // tex フォルダ作成
         string texPath = $"{resPath}/tex";
         if (!AssetDatabase.IsValidFolder(texPath))
         {
             AssetDatabase.CreateFolder(resPath, "tex");
         }
         
-        // tmb フォルダ作成
         string tmbPath = $"{resPath}/tmb";
         if (!AssetDatabase.IsValidFolder(tmbPath))
         {
             AssetDatabase.CreateFolder(resPath, "tmb");
         }
         
-        // tmp作成
         if (!AssetDatabase.IsValidFolder(TmpPath))
         {
             if (!AssetDatabase.IsValidFolder("Assets/Pan/ContactLens"))
@@ -160,18 +186,17 @@ public class ContactLensCreatorWindow : EditorWindow
             AssetDatabase.CreateFolder("Assets/Pan/ContactLens", "tmp");
         }
         
-        // 状態保存
         currentState = new CreatorState
         {
             authorName = authorName,
             productName = productName,
-            avatarMode = (int)avatarMode,
+            sourceAvatar = sourceAvatar,
             isCreating = true
         };
         SaveState();
         
         AssetDatabase.Refresh();
-        Debug.Log($"[ContactLens] 製作開始: {projectPath}");
+        Debug.Log($"[ContactLens] 製作開始: {projectPath} (作成元: {sourceAvatar})");
     }
     
     private void EndCreation()
@@ -224,11 +249,12 @@ public class ContactLensCreatorWindow : EditorWindow
             currentState = JsonUtility.FromJson<CreatorState>(json);
             authorName = currentState.authorName ?? "";
             productName = currentState.productName ?? "";
-            avatarMode = (ContactLens.AvatarMode)currentState.avatarMode;
+            sourceAvatar = currentState.sourceAvatar ?? "flat12";
         }
         else
         {
             currentState = null;
+            sourceAvatar = "flat12";
         }
     }
 }

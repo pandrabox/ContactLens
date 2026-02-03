@@ -16,10 +16,10 @@ public class ContactLensCatalogWindow : EditorWindow
     private int gridSize = 80;
     
     // フィルタ
-    private int authorFilterIndex = 0;  // 0 = 全て
-    private int avatarModeFilterIndex = 0;  // 0 = 全て
+    private int authorFilterIndex = 0;
+    private int avatarFilterIndex = 0;
     private List<string> authorList = new List<string> { "全て" };
-    private string[] avatarModeOptions = { "全て", "Ver1&2", "Ver3&If" };
+    private List<string> avatarFilterList = new List<string> { "全て" };
     
     // スタイル
     private GUIStyle largeLabel;
@@ -29,7 +29,8 @@ public class ContactLensCatalogWindow : EditorWindow
         public string prefabPath;
         public string name;
         public Texture2D thumbnail;
-        public ContactLens.AvatarMode avatarMode;
+        public string targetAvatar;
+        public string sourceAvatar;
         public string author;
     }
     
@@ -75,9 +76,9 @@ public class ContactLensCatalogWindow : EditorWindow
         
         GUILayout.Space(10);
         
-        // アバターモードフィルタ
-        EditorGUILayout.LabelField("モード:", GUILayout.Width(40));
-        avatarModeFilterIndex = EditorGUILayout.Popup(avatarModeFilterIndex, avatarModeOptions, EditorStyles.toolbarPopup, GUILayout.Width(70));
+        // アバターフィルタ
+        EditorGUILayout.LabelField("アバター:", GUILayout.Width(50));
+        avatarFilterIndex = EditorGUILayout.Popup(avatarFilterIndex, avatarFilterList.ToArray(), EditorStyles.toolbarPopup, GUILayout.Width(100));
         
         GUILayout.FlexibleSpace();
         
@@ -115,13 +116,11 @@ public class ContactLensCatalogWindow : EditorWindow
             
             Rect rect = EditorGUILayout.GetControlRect(GUILayout.Width(gridSize), GUILayout.Height(gridSize + 20));
             
-            // 選択状態の背景
             if (selectedIndex == i)
             {
                 EditorGUI.DrawRect(rect, new Color(0.3f, 0.5f, 0.8f, 0.5f));
             }
             
-            // サムネイル
             Rect thumbRect = new Rect(rect.x + 5, rect.y + 2, gridSize - 10, gridSize - 10);
             if (item.thumbnail != null)
             {
@@ -132,11 +131,9 @@ public class ContactLensCatalogWindow : EditorWindow
                 EditorGUI.DrawRect(thumbRect, Color.gray);
             }
             
-            // 名前
             Rect labelRect = new Rect(rect.x, rect.y + gridSize - 8, gridSize, 20);
             GUI.Label(labelRect, item.name, EditorStyles.centeredGreyMiniLabel);
             
-            // クリック検出
             if (Event.current.type == EventType.MouseDown && rect.Contains(Event.current.mousePosition))
             {
                 selectedIndex = i;
@@ -170,7 +167,6 @@ public class ContactLensCatalogWindow : EditorWindow
         {
             var item = filteredItems[selectedIndex];
             
-            // 大きいサムネイル (512x512)
             Rect previewRect = EditorGUILayout.GetControlRect(GUILayout.Width(512), GUILayout.Height(512));
             if (item.thumbnail != null)
             {
@@ -184,10 +180,19 @@ public class ContactLensCatalogWindow : EditorWindow
             
             EditorGUILayout.Space(10);
             
-            // 情報
             EditorGUILayout.LabelField(item.name, largeLabel);
             EditorGUILayout.LabelField($"作者: {item.author}", largeLabel);
-            EditorGUILayout.LabelField($"モード: {item.avatarMode}", largeLabel);
+            
+            var targetInfo = ContactLensConfig.GetAvatar(item.targetAvatar);
+            var sourceInfo = ContactLensConfig.GetAvatar(item.sourceAvatar);
+            string targetDisplay = targetInfo?.displayName ?? item.targetAvatar;
+            string sourceDisplay = sourceInfo?.displayName ?? item.sourceAvatar;
+            
+            EditorGUILayout.LabelField($"適用先: {targetDisplay}", largeLabel);
+            if (item.sourceAvatar != item.targetAvatar)
+            {
+                EditorGUILayout.LabelField($"作成元: {sourceDisplay}", largeLabel);
+            }
         }
         else
         {
@@ -208,11 +213,12 @@ public class ContactLensCatalogWindow : EditorWindow
             filtered = filtered.Where(i => i.author == author);
         }
         
-        // モードフィルタ
-        if (avatarModeFilterIndex == 1)
-            filtered = filtered.Where(i => i.avatarMode == ContactLens.AvatarMode.Ver12);
-        else if (avatarModeFilterIndex == 2)
-            filtered = filtered.Where(i => i.avatarMode == ContactLens.AvatarMode.Ver3If);
+        // アバターフィルタ
+        if (avatarFilterIndex > 0 && avatarFilterIndex < avatarFilterList.Count)
+        {
+            string avatar = avatarFilterList[avatarFilterIndex];
+            filtered = filtered.Where(i => i.targetAvatar == avatar || i.sourceAvatar == avatar);
+        }
         
         return filtered.ToList();
     }
@@ -224,7 +230,18 @@ public class ContactLensCatalogWindow : EditorWindow
         authorList = new List<string> { "全て" };
         var authors = new HashSet<string>();
         
-        // Assets全体からprefabを検索
+        // アバターフィルタリスト構築
+        avatarFilterList = new List<string> { "全て" };
+        var avatarNames = ContactLensConfig.AvatarNames;
+        if (avatarNames != null)
+        {
+            foreach (var name in avatarNames)
+            {
+                var info = ContactLensConfig.GetAvatar(name);
+                avatarFilterList.Add(info?.displayName ?? name);
+            }
+        }
+        
         string[] guids = AssetDatabase.FindAssets("t:Prefab");
         
         foreach (var guid in guids)
@@ -243,7 +260,8 @@ public class ContactLensCatalogWindow : EditorWindow
             {
                 prefabPath = path,
                 name = prefab.name,
-                avatarMode = lens.avatarMode,
+                targetAvatar = lens.targetAvatar ?? "flat12",
+                sourceAvatar = lens.sourceAvatar ?? "flat12",
                 thumbnail = FindThumbnail(path),
                 author = author
             };
@@ -251,7 +269,6 @@ public class ContactLensCatalogWindow : EditorWindow
             items.Add(item);
         }
         
-        // 作者リスト構築
         authorList.AddRange(authors.OrderBy(a => a));
         
         Debug.Log($"[ContactLens] カタログ更新: {items.Count} 件");
@@ -259,7 +276,6 @@ public class ContactLensCatalogWindow : EditorWindow
     
     private string ExtractAuthor(string path)
     {
-        // Assets/{作者名}/{製品名}/... から作者名を抽出
         var parts = path.Split('/');
         if (parts.Length >= 2 && parts[0] == "Assets")
         {

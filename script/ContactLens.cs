@@ -14,8 +14,9 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     [Header("レンズ設定")]
     public Texture2D lensTexture;
     
-    [Header("アバターモード")]
-    public AvatarMode avatarMode = AvatarMode.Ver12;
+    [Header("アバター設定")]
+    public string targetAvatar = "flat12";
+    public string sourceAvatar = "flat12";
     
     [Header("瞳孔設定")]
     public bool enablePupil = true;
@@ -23,22 +24,9 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     [Range(0f, 1f)]
     public float pupilAlpha = 1f;
     
-    // 瞳孔Hide設定 (Ver3&If用) - 内部固定値
-    const int PupilVertexCount = 100;
-    static readonly Vector2 PupilYRange = new Vector2(-0.19f, -0.175f);
+    [Header("上級者設定")]
+    public bool showAdvancedSettings = false;
     static readonly Vector3 CollapsePosition = new Vector3(0f, 0f, 1.5f);
-    
-    [Header("マスク設定")]
-    public bool showMaskSettings = false;
-    public Texture2D pupilMask12;
-    public Texture2D pupilMask3If;
-    public Texture2D eyeMask;
-    
-    public enum AvatarMode
-    {
-        Ver12,
-        Ver3If
-    }
     
     [HideInInspector] public string originalMaterialGUID;
     [HideInInspector] public string generatedMaterialPath;
@@ -52,11 +40,17 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     static string GeneratedFolder => "Assets/Pan/ContactLens/Generated";
     static List<string> pendingDeletes = new List<string>();
     
-    // VRChatビルド中フラグ
     public static bool IsVRCBuilding { get; set; } = false;
     
-    // Ver3&Ifで瞳孔Hideが必要かどうか
-    bool NeedsPupilHide => avatarMode == AvatarMode.Ver3If && (!enablePupil || pupilAlpha < 1f);
+    bool NeedsPupilHide
+    {
+        get
+        {
+            var avatarInfo = ContactLensConfig.GetAvatar(targetAvatar);
+            if (avatarInfo == null) return false;
+            return avatarInfo.IsIslandType && (!enablePupil || pupilAlpha < 1f);
+        }
+    }
     
     void OnEnable()
     {
@@ -74,14 +68,7 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
             var mat = AssetDatabase.LoadAssetAtPath<Material>(generatedMaterialPath);
             if (mat == null)
             {
-                originalMaterialGUID = "";
-                generatedMaterialPath = "";
-                generatedMainTexPath = "";
-                generatedEmissionTexPath = "";
-                appliedAvatarPath = "";
-                originalMesh = null;
-                modifiedMesh = null;
-                generatedMeshPath = "";
+                ClearState();
             }
         }
     }
@@ -106,7 +93,6 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     {
         if (!Application.isPlaying)
         {
-            // ビルド中は何もしない
             if (BuildPipeline.isBuildingPlayer || IsVRCBuilding)
             {
                 Debug.Log("[ContactLens] Skipping restore - building");
@@ -258,8 +244,6 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         
         originalMaterialGUID = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(originalMat));
         appliedAvatarPath = GetAvatarPath();
-        
-        // メッシュ保存（瞳孔Hide用）
         originalMesh = smr.sharedMesh;
         
         var newMat = new Material(originalMat);
@@ -286,7 +270,6 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         
         smr.sharedMaterial = newMat;
         
-        // 瞳孔Hide処理
         if (NeedsPupilHide)
         {
             ApplyPupilHide(smr);
@@ -296,18 +279,16 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         EditorUtility.SetDirty(this);
         AssetDatabase.SaveAssets();
         
-        Debug.Log($"[ContactLens] 適用完了: {transform.parent.name}");
+        Debug.Log($"[ContactLens] 適用完了: {transform.parent.name} ({sourceAvatar} -> {targetAvatar})");
     }
     
     void ApplyPupilHide(SkinnedMeshRenderer smr)
     {
         if (originalMesh == null) return;
         
-        // メッシュ複製
         modifiedMesh = Instantiate(originalMesh);
         modifiedMesh.name = originalMesh.name + "_pupilHidden";
         
-        // アイランド検出
         var pupilVertices = FindPupilVertices(modifiedMesh);
         
         if (pupilVertices.Count == 0)
@@ -318,7 +299,6 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
             return;
         }
         
-        // 頂点を潰す
         Vector3[] verts = modifiedMesh.vertices;
         foreach (int idx in pupilVertices)
         {
@@ -327,7 +307,6 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         modifiedMesh.vertices = verts;
         modifiedMesh.RecalculateBounds();
         
-        // アセットとして保存
         string avatarName = transform.parent.name;
         string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
         generatedMeshPath = $"{GeneratedFolder}/{avatarName}_mesh_{timestamp}.asset";
@@ -340,6 +319,18 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
     
     List<int> FindPupilVertices(Mesh mesh)
     {
+        var pupilIslandMask = ContactLensConfig.LoadMask(targetAvatar, "pupilIsland");
+        if (pupilIslandMask == null)
+        {
+            Debug.LogWarning($"[ContactLens] pupilIslandマスクが見つかりません: {targetAvatar}");
+            return new List<int>();
+        }
+        
+        var maskReadable = GetReadable(pupilIslandMask);
+        var maskPixels = maskReadable.GetPixels();
+        int maskWidth = maskReadable.width;
+        int maskHeight = maskReadable.height;
+        
         int n = mesh.vertexCount;
         int[] p = new int[n];
         for (int i = 0; i < n; i++) p[i] = i;
@@ -369,23 +360,27 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
             dict[p[i]].Add(i);
         }
         
-        Vector3[] verts = mesh.vertices;
+        Vector2[] uvs = mesh.uv;
         var result = new List<int>();
         
         foreach (var kv in dict)
         {
-            if (kv.Value.Count != PupilVertexCount) continue;
+            float totalMask = 0f;
+            int sampleCount = 0;
             
-            // 中心座標計算
-            Vector3 center = Vector3.zero;
             foreach (int idx in kv.Value)
             {
-                center += verts[idx];
+                if (idx >= uvs.Length) continue;
+                Vector2 uv = uvs[idx];
+                
+                int px = Mathf.Clamp((int)(uv.x * maskWidth), 0, maskWidth - 1);
+                int py = Mathf.Clamp((int)(uv.y * maskHeight), 0, maskHeight - 1);
+                
+                totalMask += maskPixels[py * maskWidth + px].grayscale;
+                sampleCount++;
             }
-            center /= PupilVertexCount;
             
-            // Y座標でフィルタ
-            if (center.y >= PupilYRange.x && center.y <= PupilYRange.y)
+            if (sampleCount > 0 && totalMask / sampleCount > 0.5f)
             {
                 result.AddRange(kv.Value);
             }
@@ -394,53 +389,155 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         return result;
     }
     
+    Texture2D TransformLensTexture(Texture2D lens, int targetResolution)
+    {
+        var srcInfo = ContactLensConfig.GetAvatar(sourceAvatar);
+        var dstInfo = ContactLensConfig.GetAvatar(targetAvatar);
+        
+        if (srcInfo == null || dstInfo == null)
+        {
+            Debug.LogWarning("[ContactLens] アバター情報が見つかりません");
+            return lens;
+        }
+        
+        // 同じアバターなら変換不要（scaleAdjustのみ適用）
+        bool sameAvatar = sourceAvatar == targetAvatar || 
+            (sourceAvatar.StartsWith("flat") && targetAvatar.StartsWith("flat"));
+        
+        if (sameAvatar)
+        {
+            if (lens.width != targetResolution || lens.height != targetResolution)
+            {
+                return Resize(lens, targetResolution, targetResolution);
+            }
+            return lens;
+        }
+        
+        var srcReadable = GetReadable(lens);
+        int srcRes = srcReadable.width;
+        
+        var result = new Texture2D(targetResolution, targetResolution, TextureFormat.RGBA32, false);
+        var resultPixels = new Color[targetResolution * targetResolution];
+        
+        for (int i = 0; i < resultPixels.Length; i++)
+        {
+            resultPixels[i] = new Color(0, 0, 0, 0);
+        }
+        
+        // JSONのscaleとscaleAdjustを掛け合わせる
+        float totalScale = dstInfo.scale;
+        
+        TransformEye(srcReadable, srcInfo.leftEye, dstInfo.leftEye, srcRes, targetResolution, resultPixels, totalScale);
+        TransformEye(srcReadable, srcInfo.rightEye, dstInfo.rightEye, srcRes, targetResolution, resultPixels, totalScale);
+        
+        result.SetPixels(resultPixels);
+        result.Apply();
+        return result;
+    }
+    
+    void TransformEye(Texture2D src, EyeParams srcEye, EyeParams dstEye, int srcRes, int dstRes, Color[] resultPixels, float scale)
+    {
+        // ソース領域
+        int srcCx = (int)(srcEye.cx * srcRes);
+        int srcCy = (int)((1 - srcEye.cy) * srcRes);
+        int srcW = (int)(srcEye.width * srcRes);
+        int srcH = (int)(srcEye.height * srcRes);
+        
+        int srcX1 = Mathf.Max(0, srcCx - srcW / 2);
+        int srcY1 = Mathf.Max(0, srcCy - srcH / 2);
+        int srcX2 = Mathf.Min(srcRes, srcX1 + srcW);
+        int srcY2 = Mathf.Min(srcRes, srcY1 + srcH);
+        
+        // デスト領域（scaleを適用）
+        int dstCx = (int)(dstEye.cx * dstRes);
+        int dstCy = (int)((1 - dstEye.cy) * dstRes);
+        int dstW = (int)(dstEye.width * dstRes * scale);
+        int dstH = (int)(dstEye.height * dstRes * scale);
+        
+        int dstX1 = Mathf.Max(0, dstCx - dstW / 2);
+        int dstY1 = Mathf.Max(0, dstCy - dstH / 2);
+        
+        // 切り出し
+        int cropW = srcX2 - srcX1;
+        int cropH = srcY2 - srcY1;
+        if (cropW <= 0 || cropH <= 0) return;
+        
+        var srcPixels = src.GetPixels(srcX1, srcRes - srcY2, cropW, cropH);
+        
+        var eyeTex = new Texture2D(cropW, cropH, TextureFormat.RGBA32, false);
+        eyeTex.SetPixels(srcPixels);
+        eyeTex.Apply();
+        
+        var resized = Resize(eyeTex, dstW, dstH);
+        var resizedPixels = resized.GetPixels();
+        
+        for (int y = 0; y < dstH; y++)
+        {
+            for (int x = 0; x < dstW; x++)
+            {
+                int dx = dstX1 + x;
+                int dy = dstY1 + y;
+                if (dx < 0 || dx >= dstRes || dy < 0 || dy >= dstRes) continue;
+                
+                int srcIdx = y * dstW + x;
+                int dstIdx = (dstRes - 1 - dy) * dstRes + dx;
+                
+                if (srcIdx < resizedPixels.Length && dstIdx < resultPixels.Length)
+                {
+                    resultPixels[dstIdx] = resizedPixels[srcIdx];
+                }
+            }
+        }
+        
+        DestroyImmediate(eyeTex);
+        DestroyImmediate(resized);
+    }
+    
     Texture2D CombineAll(Texture2D baseTex)
     {
         var bgReadable = GetReadable(baseTex);
-        var lensReadable = GetReadable(lensTexture);
+        int targetRes = bgReadable.width;
         
-        if (lensReadable.width != bgReadable.width || lensReadable.height != bgReadable.height)
+        var lensTransformed = TransformLensTexture(GetReadable(lensTexture), targetRes);
+        
+        var eyeAreaMask = ContactLensConfig.LoadMask(targetAvatar, "eyeArea");
+        var pupilTextureMask = ContactLensConfig.LoadMask(targetAvatar, "pupilTexture");
+        var pupilIslandMask = ContactLensConfig.LoadMask(targetAvatar, "pupilIsland");
+        
+        Texture2D eyeAreaReadable = null;
+        if (eyeAreaMask != null)
         {
-            lensReadable = Resize(lensReadable, bgReadable.width, bgReadable.height);
+            eyeAreaReadable = GetReadable(eyeAreaMask);
+            if (eyeAreaReadable.width != targetRes)
+                eyeAreaReadable = Resize(eyeAreaReadable, targetRes, targetRes);
         }
         
-        Texture2D eyeMaskReadable = null;
-        if (eyeMask != null)
+        Texture2D pupilTextureReadable = null;
+        if (pupilTextureMask != null)
         {
-            eyeMaskReadable = GetReadable(eyeMask);
-            if (eyeMaskReadable.width != bgReadable.width || eyeMaskReadable.height != bgReadable.height)
-            {
-                eyeMaskReadable = Resize(eyeMaskReadable, bgReadable.width, bgReadable.height);
-            }
+            pupilTextureReadable = GetReadable(pupilTextureMask);
+            if (pupilTextureReadable.width != targetRes)
+                pupilTextureReadable = Resize(pupilTextureReadable, targetRes, targetRes);
         }
         
-        Texture2D pupilMask12Readable = null;
-        if (pupilMask12 != null)
+        Texture2D pupilIslandReadable = null;
+        if (pupilIslandMask != null)
         {
-            pupilMask12Readable = GetReadable(pupilMask12);
-            if (pupilMask12Readable.width != bgReadable.width || pupilMask12Readable.height != bgReadable.height)
-            {
-                pupilMask12Readable = Resize(pupilMask12Readable, bgReadable.width, bgReadable.height);
-            }
+            pupilIslandReadable = GetReadable(pupilIslandMask);
+            if (pupilIslandReadable.width != targetRes)
+                pupilIslandReadable = Resize(pupilIslandReadable, targetRes, targetRes);
         }
         
-        Texture2D pupilMask3IfReadable = null;
-        if (pupilMask3If != null)
-        {
-            pupilMask3IfReadable = GetReadable(pupilMask3If);
-            if (pupilMask3IfReadable.width != bgReadable.width || pupilMask3IfReadable.height != bgReadable.height)
-            {
-                pupilMask3IfReadable = Resize(pupilMask3IfReadable, bgReadable.width, bgReadable.height);
-            }
-        }
+        var avatarInfo = ContactLensConfig.GetAvatar(targetAvatar);
+        bool isIslandType = avatarInfo?.IsIslandType ?? false;
         
-        var result = new Texture2D(bgReadable.width, bgReadable.height, TextureFormat.RGBA32, false);
+        var result = new Texture2D(targetRes, targetRes, TextureFormat.RGBA32, false);
         
         var bgPixels = bgReadable.GetPixels();
-        var lensPixels = lensReadable.GetPixels();
-        var eyeMaskPixels = eyeMaskReadable?.GetPixels();
-        var pupilMask12Pixels = pupilMask12Readable?.GetPixels();
-        var pupilMask3IfPixels = pupilMask3IfReadable?.GetPixels();
+        var lensPixels = lensTransformed.GetPixels();
+        var eyeAreaPixels = eyeAreaReadable?.GetPixels();
+        var pupilTexturePixels = pupilTextureReadable?.GetPixels();
+        var pupilIslandPixels = pupilIslandReadable?.GetPixels();
         var resultPixels = new Color[bgPixels.Length];
         
         for (int i = 0; i < bgPixels.Length; i++)
@@ -449,43 +546,38 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
             Color lensC = lensPixels[i];
             Color current = bgC;
             
-            float eyeMaskValue = eyeMaskPixels != null ? eyeMaskPixels[i].grayscale : 1f;
-            float pupilMask12Value = pupilMask12Pixels != null ? pupilMask12Pixels[i].grayscale : 0f;
-            float pupilMask3IfValue = pupilMask3IfPixels != null ? pupilMask3IfPixels[i].grayscale : 0f;
+            float eyeAreaValue = eyeAreaPixels != null ? eyeAreaPixels[i].grayscale : 1f;
+            float pupilTextureValue = pupilTexturePixels != null ? pupilTexturePixels[i].grayscale : 0f;
+            float pupilIslandValue = pupilIslandPixels != null ? pupilIslandPixels[i].grayscale : 0f;
             
-            // レンズ合成（EyeMaskで制限）
-            float lensBlend = lensC.a * eyeMaskValue;
+            float lensBlend = lensC.a * eyeAreaValue;
             current = Color.Lerp(current, lensC, lensBlend);
             
-            // 瞳孔処理（テクスチャベース）
-            if (avatarMode == AvatarMode.Ver12)
+            if (!isIslandType)
             {
-                // Ver1&2: pupilMask12で描画
-                if (enablePupil && pupilMask12Pixels != null)
+                if (enablePupil && pupilTexturePixels != null)
                 {
-                    float pupilBlend = pupilMask12Value * pupilAlpha;
+                    float pupilBlend = pupilTextureValue * pupilAlpha;
                     current = Color.Lerp(current, pupilColor, pupilBlend);
                 }
             }
-            else if (avatarMode == AvatarMode.Ver3If)
+            else
             {
                 if (enablePupil)
                 {
                     if (pupilAlpha < 1f)
                     {
-                        // Ver3&If + α<1: 元メッシュHide + pupilMask12で描画（Ver1&2方式）
-                        if (pupilMask12Pixels != null)
+                        if (pupilTexturePixels != null)
                         {
-                            float pupilBlend = pupilMask12Value * pupilAlpha;
+                            float pupilBlend = pupilTextureValue * pupilAlpha;
                             current = Color.Lerp(current, pupilColor, pupilBlend);
                         }
                     }
                     else
                     {
-                        // Ver3&If + α=1: 元メッシュ色替え（pupilMask3If）
-                        if (pupilMask3IfPixels != null)
+                        if (pupilIslandPixels != null)
                         {
-                            float pupilBlend = pupilMask3IfValue * pupilAlpha;
+                            float pupilBlend = pupilIslandValue * pupilAlpha;
                             current = Color.Lerp(current, pupilColor, pupilBlend);
                         }
                     }
@@ -545,7 +637,6 @@ public class ContactLens : MonoBehaviour, VRC.SDKBase.IEditorOnly
         File.WriteAllBytes(path, tex.EncodeToPNG());
         AssetDatabase.Refresh();
         
-        // Streaming Mip Maps を有効化
         var importer = AssetImporter.GetAtPath(path) as TextureImporter;
         if (importer != null)
         {
